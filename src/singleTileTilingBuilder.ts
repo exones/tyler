@@ -1,4 +1,4 @@
-import { TilingBuilder, TilingModel, Tile } from "./core";
+import { TilingBuilder, TilingModel, Tile } from "./tiles";
 
 
 export const singleTileTilingBuilder: TilingBuilder = (options): TilingModel => {
@@ -11,8 +11,7 @@ export const singleTileTilingBuilder: TilingBuilder = (options): TilingModel => 
         for (let col = 0; col < cols; col++) {
             tiles.push({
                 name: firstTileType.name,
-                x: col,
-                y: row
+                coords: { col, row }
             });
         }
     }
@@ -22,5 +21,3 @@ export const singleTileTilingBuilder: TilingBuilder = (options): TilingModel => 
         tiles
     };
 };
-
-

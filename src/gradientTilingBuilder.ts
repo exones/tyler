@@ -1,5 +1,5 @@
 import { shuffle } from "lodash";
-import { TilingOptions, TilingModel, Tile, TileType, GradientStop } from "./core";
+import { TilingOptions, TilingModel, Tile, TileType, GradientStop } from "./tiles";
 
 
 
@@ -9,11 +9,6 @@ export const gradientTilingBuilder = (options: TilingOptions): TilingModel => {
     const tiles: Tile[] = [];
 
     const stops = gradient.stops;
-    const tilesTypesByName = tileTypes.reduce((acc: Record<string, TileType>, tileType) => {
-        acc[tileType.name] = tileType;
-
-        return acc as Record<string, TileType>;
-    }, {} as Record<string, TileType>);
 
     // we want to have a smooth of a gradient as possible given the discrete nature of the grid
     // so we will assign tiles to columns based on the relative position of the column in the grid
@@ -46,13 +41,8 @@ export const gradientTilingBuilder = (options: TilingOptions): TilingModel => {
     let prevStop: GradientStop = stops.shift()!;
     let currentStop: GradientStop = stops.shift()!;
 
-    // Define the size of the window
-    const windowWidth = 5;
-    const windowHeight = rows;
-
     for (let col = 0; col < cols; col++) {
         const relativeX = col / cols; // relative position of the column
-
 
         // switching to the next stop if needed
         if (relativeX > currentStop.relativeX) {
@@ -87,11 +77,14 @@ export const gradientTilingBuilder = (options: TilingOptions): TilingModel => {
         const rowTiles = shuffle(tilesToShuffle);
 
         for (let row = 0; row < rows; row++) {
-            tiles.push({
+            const tile: Tile = {
                 name: rowTiles[row],
-                x: col,
-                y: row
-            });
+                coords: {
+                    col,
+                    row
+                }
+            };
+            tiles.push(tile);
         }
     }
 

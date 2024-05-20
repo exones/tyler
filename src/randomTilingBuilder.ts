@@ -1,4 +1,4 @@
-import { TilingBuilder, TilingModel, Tile } from "./core";
+import { TilingBuilder, TilingModel, Tile } from "./tiles";
 
 
 export const randomTilingBuilder: TilingBuilder = (options): TilingModel => {
@@ -11,8 +11,7 @@ export const randomTilingBuilder: TilingBuilder = (options): TilingModel => {
 
             tiles.push({
                 name: tileType.name,
-                x: col,
-                y: row
+                coords: { col, row }
             });
         }
     }
