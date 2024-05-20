@@ -19,16 +19,73 @@ export type Crop = {
 
 export type ColorVector = Colord[];
 
+export type ToImageDataOptions = {
+    /**
+     * To draw exagerrated big pixels.
+     */
+    pixelSize?: number;
+}
+
 export class ColorMatrix {
     public readonly rows: number;
     public readonly cols: number;
 
     private readonly matrix: ColorVector[];
 
+    public clone() {
+        const newMatrix = ColorMatrix.empty(this.rows, this.cols);
+
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                newMatrix.set(row, col, this.get(row, col));
+            }
+        }
+
+        return newMatrix;
+    }
+
     public drawOn(ctx: CanvasRenderingContext2D, x?: number, y?: number): void {
         const imageData = this.toImageData();
 
         ctx.putImageData(imageData, x ?? 0, y ?? 0);
+    }
+
+    public scalePixel(scale: number) {
+        const newMatrix = ColorMatrix.empty(this.rows * scale, this.cols * scale);
+
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                const color = this.get(row, col);
+                for (let i = 0; i < scale; i++) {
+                    for (let j = 0; j < scale; j++) {
+                        newMatrix.set(row * scale + i, col * scale + j, color);
+                    }
+                }
+            }
+        }
+
+        return newMatrix;
+    }
+
+    public scalePixelWithBorder(scale: number, borderColor: Colord) {
+        const newMatrix = ColorMatrix.empty(this.rows * scale, this.cols * scale);
+
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                const color = this.get(row, col);
+                for (let timesI = 0; timesI < scale; timesI++) {
+                    for (let timesJ = 0; timesJ < scale; timesJ++) {
+                        if (timesI === 0 || timesI === scale || timesJ === 0 || timesJ === scale) {
+                            newMatrix.set(row * scale + timesI, col * scale + timesJ, borderColor);
+                        } else {
+                            newMatrix.set(row * scale + timesI, col * scale + timesJ, color);
+                        }
+                    }
+                }
+            }
+        }
+
+        return newMatrix;
     }
 
     public static async fromSharpImage(image: sharp.Sharp, options?: {crop?: Crop}): Promise<ColorMatrix> {
@@ -75,6 +132,7 @@ export class ColorMatrix {
         return new ColorMatrix(rows, cols);
     }
 
+
     public toRGBUint8ClampedArray(): Uint8ClampedArray {
         const data = new Uint8ClampedArray(this.rows * this.cols * 4);
 
@@ -93,9 +151,14 @@ export class ColorMatrix {
         return data;
     }
 
-    public toImageData(): ImageData {
-        return new ImageData(this.toRGBUint8ClampedArray(), this.cols, this.rows, {
-            colorSpace: 'srgb',
+    public toImageData(options?: ToImageDataOptions): ImageData {
+        const colorsArray = this.toRGBUint8ClampedArray();
+
+        const actualPixelSize = options?.pixelSize ?? 1;
+        
+
+        return new ImageData(colorsArray, this.cols, this.rows, {
+            colorSpace: 'srgb'
         });
     }
 
@@ -126,9 +189,9 @@ export class ColorMatrix {
                 }
                 this.matrix.push(rowValues);
             }
+        } else {
+            this.matrix = values ?? [];
         }
-
-        this.matrix = values ?? [];
     }
 
     private checkBoundaries(row: number, col: number) {
@@ -196,22 +259,24 @@ export type UnsafeLabColor = { l: number, a: number, b: number };
 
 export type ColorDistance = (color1: Colord, color2: Colord) => number;
 export type GetQuantizationError = (sourceColor: Colord, availableColor: Colord) => UnsafeLabColor;
-export type FindClosesColor = (sourceColor: Colord, palette: Colord[], distanceFunc: ColorDistance) => Colord;
+export type FindClosesColor = (sourceColor: Colord, palette: Colord[]) => Colord;
 
-export const findClosestColor : FindClosesColor = (sourceColor, palette, distanceFunc) => {
-    let minDistance = Number.MAX_VALUE;
-    let closestColor = palette[0];
+export function simpleFindClosestColor(distanceFunc: ColorDistance) : FindClosesColor {
+    return (sourceColor, palette) => {
+        let minDistance = Number.MAX_VALUE;
+        let closestColor = palette[0];
 
-    for (const color of palette) {
-        const distance = distanceFunc(sourceColor, color);
+        for (const color of palette) {
+            const distance = distanceFunc(sourceColor, color);
 
-        if (distance < minDistance) {
-            minDistance = distance;
-            closestColor = color;
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestColor = color;
+            }
         }
-    }
 
-    return closestColor;
+        return closestColor;
+    }
 }
 
 export const labQuantizationError : GetQuantizationError = (sourceColor, availableColor) => {

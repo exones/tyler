@@ -4,6 +4,8 @@ import { gradientTilingBuilder } from "./gradientTilingBuilder";
 import { draw as newCanvas } from './drawing';
 import { create2DHorizontalGradient } from './gradient';
 import { colord } from 'colord';
+import { ditherWithErrorQuantization, floydSteinbergDitherMatrix, stuckiDitherMatrix } from './dithering';
+import { euclidianLabDistance, labQuantizationError as getLabQuantizationError, simpleFindClosestColor } from './color';
 
 let root: HTMLDivElement | undefined = undefined;
 
@@ -129,7 +131,7 @@ window.onload = async function () {
     }
 
     await newCanvas({
-        off: false,
+        off: true,
         height: 200
     },async ctx => {
         const tileSizeInCm = 10;
@@ -181,27 +183,63 @@ window.onload = async function () {
         });
     })
 
+    const startColor = colord({
+        r: 0,
+        g: 0,
+        b: 0
+    });
+
+    const endColor = colord({
+        r: 255,
+        g: 255,
+        b: 255
+    });
+
+    const height = 5;
+    const width = 5;
+
+    const hGradient = create2DHorizontalGradient(startColor, endColor, height, width);
+
     // gradient
     await newCanvas({
         height: 200
     }, async (ctx, opts) => {
-        const startColor = colord({
-            r: 150,
-            g: 0,
-            b: 123
-        });
-
-        const endColor  = colord({
-            r: 0,
-            g: 0,
-            b: 255
-        });
-
-        const gradient = create2DHorizontalGradient(startColor, endColor, 200, opts.height);
-
-        gradient.drawOn(ctx);
+        hGradient.drawOn(ctx);
     });
 
-    await newCanvas({}, async ctx => {
+    // await newCanvas({}, async (ctx, opts) => {
+    //     const dithered = ditherWithErrorQuantization(
+    //         hGradient,
+    //         [ startColor, colord({ r: 100, g: 100,  b: 255 }),  endColor ],
+    //         stuckiDitherMatrix,
+    //         simpleFindClosestColor(euclidianLabDistance),
+    //         getLabQuantizationError
+    //     );
+
+    //     dithered.drawOn(ctx);
+    // });
+
+    await newCanvas({
+        height: 10000
+    }, async (ctx, opts) => {
+        
+        let top = 0;
+        const dithered = ditherWithErrorQuantization(
+            hGradient,
+            // [ startColor, endColor ],
+            [ colord("black"), colord("white") ],
+            floydSteinbergDitherMatrix,
+            simpleFindClosestColor(euclidianLabDistance),
+            getLabQuantizationError,
+            (current) => {
+                current.scalePixelWithBorder(20, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
+            
+                top += height * 20 + 10;
+            }
+        );
+
+        dithered.drawOn(ctx);
+
+
     });
 };

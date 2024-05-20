@@ -1,50 +1,84 @@
-import { Colord } from "colord";
-import { ColorDistance as GetColorDistance, ColorMatrix, FindClosesColor, GetQuantizationError } from "./color";
+import { Colord, colord } from "colord";
+import { ColorDistance as GetColorDistance, ColorMatrix, FindClosesColor, GetQuantizationError, UnsafeLabColor } from "./color";
 import { isNil } from "lodash";
-import { Matrix } from "mathjs";
+import { Matrix, matrix } from "mathjs";
 
-export function errorQuantizationDithering(
-    image: ColorMatrix,
+export type Debug = (currentImage: ColorMatrix) => void;
+
+export function ditherWithErrorQuantization(
+    sourceImage: ColorMatrix,
     palette: Colord[],
     ditherMatrix: Matrix,
-    getColorDistance: GetColorDistance,
     findClosestColor: FindClosesColor,
     getQuantizationError: GetQuantizationError,
+    debug?: Debug
 ): ColorMatrix {
-    const { cols, rows } = image;
+    const { cols, rows } = sourceImage;
     const [ dRows, dCols] = ditherMatrix.size()
 
-    const dithered = ColorMatrix.empty(rows, cols);
+    const dithered = sourceImage.clone();
 
-    for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-            const oldColor = image.get(y, x);
-            const newColor = findClosestColor(oldColor, palette, getColorDistance);
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const oldColor = sourceImage.get(row, col);
+            const newColor = findClosestColor(oldColor, palette);
 
-            dithered.set(y, x, newColor);
+            dithered.set(row, col, newColor);
 
-            const quantError = getQuantizationError(oldColor, newColor); // usually oldColor - newColor
+            const quantError : UnsafeLabColor = getQuantizationError(oldColor, newColor); // usually oldColor - newColor
 
-            for (let dy = 0; dy < dRows; dy++) {
-                for (let dx = 0; dx < dCols; dx++) {
-                    const ditherValue = ditherMatrix.get([dy, dx]) as number | undefined;
-                    if (isNil(ditherValue) || ditherValue <= 0) continue;
+            // because the matrix starts from the middle of the first row
+            const dColStart = Math.floor(dRows / 2);
+            const dRowStart = 0;
 
-                    const ny = y + dy;
-                    const nx = x + dx;
+            function addColorWithRatio(color1: Colord, color2: UnsafeLabColor, ratio: number): Colord {
+                const lab1 = color1.toLab();
+                const lab2 = color2;
 
-                    if (ny < 0 || ny >= rows || nx < 0 || nx >= cols) continue;
+                return colord({
+                    l: lab1.l + lab2.l * ratio,
+                    a: lab1.a + lab2.a * ratio,
+                    b: lab1.b + lab2.b * ratio,
+                });
+            }
 
-                    const ditheredColor = dithered.get(ny, nx); // current color
+            // traversing dither matrix
+            for (let dRow = 0; dRow < dRows; dRow++) {
+                for (let dCol = 0; dCol < dCols; dCol++) {
+                    const errorTransferStrength = ditherMatrix.get([dRow, dCol]) as number;
+
+                    const updateRow = row + dRow - dRowStart;
+                    const updateCol = col + dCol - dColStart;
+
+                    if (updateRow < 0 || updateRow >= rows || updateCol < 0 || updateCol >= cols) continue;
+                    const currentColor = dithered.get(updateRow, updateCol); // current color
 
                     // Colord will clamp the values if they go outside of the allowed range
-                    const updatedDitheredColor = ditheredColor.mix(quantError, ditherValue); // add a certain amount of quantization error
+                    const updatedColor =  addColorWithRatio(currentColor, quantError, errorTransferStrength); // add a certain amount of quantization error
 
-                    dithered.set(ny, nx, updatedDitheredColor);
+                    // console.log({ nx: updateCol, ny: updateRow, error: quantError, before: currentColor, after: updatedColor });
+
+                    const quantErrorString = `lab(${quantError.l}, ${quantError.a}, ${quantError.b})`;
+                    // console.log(`nx: ${updateCol}, ny: ${updateRow}, error: ${quantErrorString}, before: ${currentColor.toHex()}, after: ${updatedColor.toHex()}`);
+
+                    dithered.set(updateRow, updateCol, updatedColor);
                 }
             }
+
+            debug?.(dithered);
         }
     }
 
     return dithered;
 }
+
+export const stuckiDitherMatrix: Matrix = matrix([
+    [0, 0, 0, 8, 4],
+    [2, 4, 8, 4, 2],
+    [1, 2, 4, 2, 1],
+]).map((v: number) => v / 42.0);
+
+export const floydSteinbergDitherMatrix: Matrix = matrix([
+    [0, 0, 7],
+    [3, 5, 1],
+]).map((v: number) => v / 16.0);
