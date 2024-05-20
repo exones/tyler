@@ -68,6 +68,10 @@ export class ColorMatrix {
     }
 
     public scalePixelWithBorder(scale: number, borderColor: Colord) {
+        if (scale === 1) {
+            return this.clone();
+        }
+
         const newMatrix = ColorMatrix.empty(this.rows * scale, this.cols * scale);
 
         for (let row = 0; row < this.rows; row++) {

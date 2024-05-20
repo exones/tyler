@@ -20,7 +20,7 @@ export function ditherWithErrorQuantization(
 
     for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-            const oldColor = sourceImage.get(row, col);
+            const oldColor = dithered.get(row, col);
             const newColor = findClosestColor(oldColor, palette);
 
             dithered.set(row, col, newColor);

@@ -195,16 +195,18 @@ window.onload = async function () {
         b: 255
     });
 
-    const height = 5;
-    const width = 5;
+    const height = 200;
+    const width = 200;
 
     const hGradient = create2DHorizontalGradient(startColor, endColor, height, width);
+
+    const scale = 1;
 
     // gradient
     await newCanvas({
         height: 200
     }, async (ctx, opts) => {
-        hGradient.drawOn(ctx);
+        hGradient.scalePixelWithBorder(scale, colord("red")).drawOn(ctx);
     });
 
     // await newCanvas({}, async (ctx, opts) => {
@@ -224,21 +226,26 @@ window.onload = async function () {
     }, async (ctx, opts) => {
         
         let top = 0;
+        
         const dithered = ditherWithErrorQuantization(
             hGradient,
             // [ startColor, endColor ],
-            [ colord("black"), colord("white") ],
-            floydSteinbergDitherMatrix,
+            [ colord({r: 0, g: 0, b: 0}), colord({r: 255, g: 255, b: 255}) ],
+            stuckiDitherMatrix,
             simpleFindClosestColor(euclidianLabDistance),
             getLabQuantizationError,
-            (current) => {
-                current.scalePixelWithBorder(20, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
+            // (current) => {
+            //     current.scalePixelWithBorder(scale, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
             
-                top += height * 20 + 10;
-            }
+            //     top += height * scale + 10;
+            // }
         );
 
-        dithered.drawOn(ctx);
+        dithered.scalePixelWithBorder(scale, colord({
+            r: 255,
+            g: 0,
+            b: 0
+        })) .drawOn(ctx);
 
 
     });
