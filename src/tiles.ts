@@ -1,5 +1,6 @@
 import { Colord } from "colord";
-import { isNil } from "lodash";
+import { ColorMatrix, IHaveColor } from "./color";
+import { GradientOptions } from "./gradient";
 
 export type Color = string;
 
@@ -19,9 +20,26 @@ export type TilePictureRef = {
 
 export type TileName = string;
 
-export type TileType = {
+export type TileTypeConstructorOptions = {
     name: TileName;
     image: TileImage;
+}
+
+export class TileType implements IHaveColor {
+    public readonly name: TileName;
+    public readonly image: TileImage;
+    public readonly color: Colord;
+
+
+    constructor(options: TileTypeConstructorOptions) {
+        this.name = options.name;
+        this.image = options.image;
+        this.color = this.image.effectiveColor;
+    }
+
+    public get effectiveColor(): Colord {
+        return this.image.effectiveColor;
+    }    
 };
 
 export type TileWithCoords = TileType & {
@@ -29,21 +47,7 @@ export type TileWithCoords = TileType & {
     y: number;
 };
 
-export type GradientStop = {
-    /**
-     * Start of this gradient stop in relative coordinates (from 0 to 1).
-     */
-    relativeX: number; 
 
-    /**
-     * Tile type for this gradient stop.
-     */
-    tileName: TileName;
-}
-
-export type GradientOptions = {
-    stops: GradientStop[];
-}
 
 export type TilingOptions = {
     rows: number;
@@ -70,8 +74,6 @@ export class Rectangle {
         this.height = height;
     }
 }
-
-
 
 export type TileCoords = {
     row: number;
@@ -105,9 +107,14 @@ export abstract class TileImage {
     }
 
     public abstract drawCore(tile: Tile, ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void;
+
+    public abstract get effectiveColor(): Colord;
 }
 
 export class SolidColorTileImage extends TileImage {
+    public override get effectiveColor(): Colord {
+        return this.color;
+    }
     public readonly color: Colord;
 
     constructor(color: Colord) {
@@ -115,7 +122,7 @@ export class SolidColorTileImage extends TileImage {
         this.color = color;
     }
 
-    public override drawCore(tile: Tile,  ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void {
+    public override drawCore(_tile: Tile,  ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void {
         const { color } = this;
 
         ctx.fillStyle = color.toHex();
@@ -132,6 +139,14 @@ type WebImageTileImageOptions = {
 }
 
 export class WebImageTileImage extends TileImage {
+    public get effectiveColor(): Colord {
+        const imageColorMatrix = ColorMatrix.empty(1, 1);
+
+        // TODO: remove X% of the brightest and darkest pixels to avoid outliers (e.g. white or black pixels)
+        const averageColor = imageColorMatrix.getAverageColor();
+
+        return averageColor;
+    }
     private readonly crop?: PictureCrop;
     private readonly dir: string;
     private readonly samples: string[];

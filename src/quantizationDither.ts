@@ -1,11 +1,10 @@
-import { Colord } from "colord";
-import { ColorMatrix, FindClosesColor } from "./color";
+import { AnyColor, ColorMatrix, FindClosesColor, getColord } from "./color";
 import { Debug } from "./errorQuantizationDithering";
 
 
 export function quantizationDither(
     sourceImage: ColorMatrix,
-    palette: Colord[],
+    palette: AnyColor[],
     findClosestColor: FindClosesColor,
     debug?: Debug
 ): ColorMatrix {
@@ -18,7 +17,7 @@ export function quantizationDither(
             const oldColor = dithered.get(row, col);
             const newColor = findClosestColor(oldColor, palette);
 
-            dithered.set(row, col, newColor);
+            dithered.set(row, col, getColord(newColor));
 
             if (debug) debug(dithered);
         }

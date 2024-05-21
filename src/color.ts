@@ -5,7 +5,6 @@ import { Colord, colord, extend } from "colord";
 import sharp from "sharp";
 import mixPlugin from "colord/plugins/mix";
 import labPlugin from "colord/plugins/lab";
-import Color from "color";
 
 extend([mixPlugin]);
 extend([labPlugin]);
@@ -24,6 +23,18 @@ export type ToImageDataOptions = {
      * To draw exagerrated big pixels.
      */
     pixelSize?: number;
+}
+
+export function addColorWithRatio(color1: Colord, color2: UnsafeLabColor, ratio: number): Colord {
+    const lab1 = color1.toLab();
+    const lab2 = color2;
+
+    return colord({
+        l: lab1.l + lab2.l * ratio,
+        a: lab1.a + lab2.a * ratio,
+        b: lab1.b + lab2.b * ratio,
+    });
+
 }
 
 export class ColorMatrix {
@@ -226,20 +237,20 @@ export class ColorMatrix {
     }
 
     // Gets average color of the matrix in LAB color space
-    public getAverageColor(): Colord {
+    public getAverageColor(brightestAndDarkestOutliers?: number): Colord {
         let sumL = 0;
         let sumA = 0;
         let sumB = 0;
 
-        for (let row = 0; row < this.rows; row++) {
-            for (let col = 0; col < this.cols; col++) {
-                const color = this.get(row, col);
-                const lab = color.toLab();
+        const colors = this.matrix.flat();
 
-                sumL += lab.l;
-                sumA += lab.a;
-                sumB += lab.b;
-            }
+        if (brightestAndDarkestOutliers) {
+            const sortedColors = colors.sort((a, b) => a.toLab().l - b.toLab().l);
+
+            const darkest = sortedColors.slice(0, brightestAndDarkestOutliers);
+            const brightest = sortedColors.slice(sortedColors.length - brightestAndDarkestOutliers);
+
+            colors.filter(color => !darkest.includes(color) && !brightest.includes(color));
         }
 
         const averageL = sumL / (this.rows * this.cols);
@@ -278,13 +289,19 @@ export function colorMatrixToImageData(colorMatrix: ColorMatrix): ImageData {
 
 
 
+export interface IHaveColor {
+    readonly color: Colord;
+}
+
+export type AnyColor = Colord | IHaveColor;
+
 
 export type UnsafeLabColor = { l: number, a: number, b: number };
 
 
-export type ColorDistance = (color1: Colord, color2: Colord) => number;
-export type GetQuantizationError = (sourceColor: Colord, availableColor: Colord) => UnsafeLabColor;
-export type FindClosesColor = (sourceColor: Colord, palette: Colord[]) => Colord;
+export type ColorDistance = (color1: AnyColor, color2: AnyColor) => number;
+export type GetQuantizationError = (sourceColor: AnyColor, availableColor: AnyColor) => UnsafeLabColor;
+export type FindClosesColor = (sourceColor: AnyColor, palette: AnyColor[]) => AnyColor;
 
 export function simpleFindClosestColor(distanceFunc: ColorDistance) : FindClosesColor {
     return (sourceColor, palette) => {
@@ -305,8 +322,8 @@ export function simpleFindClosestColor(distanceFunc: ColorDistance) : FindCloses
 }
 
 export const labQuantizationError : GetQuantizationError = (sourceColor, availableColor) => {
-    const sourceLab = sourceColor.toLab();
-    const availableLab = availableColor.toLab();
+    const sourceLab = getColord(sourceColor).toLab();
+    const availableLab = getColord(availableColor).toLab();
 
     const deltaL = sourceLab.l - availableLab.l;
     const deltaA = sourceLab.a - availableLab.a;
@@ -315,9 +332,17 @@ export const labQuantizationError : GetQuantizationError = (sourceColor, availab
     return { l: deltaL, a: deltaA, b: deltaB };
 }
 
+export function getColord(color: AnyColor): Colord {
+    if (color instanceof Colord) {
+        return color;
+    } else {
+        return color.color;
+    }
+}
+
 export const euclidianLabDistance : ColorDistance = (color1, color2) => {
-    const lab1 = color1.toLab();
-    const lab2 = color2.toLab();
+    const lab1 = getColord(color1).toLab();
+    const lab2 = getColord(color2).toLab();
     
     const deltaL = lab1.l - lab2.l;
     const deltaA = lab1.a - lab2.a;

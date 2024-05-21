@@ -1,16 +1,16 @@
-import { Colord, colord } from "colord";
-import { ColorDistance as GetColorDistance, ColorMatrix, FindClosesColor, GetQuantizationError, UnsafeLabColor } from "./color";
-import { isNil } from "lodash";
+import { ColorMatrix, FindClosesColor, GetQuantizationError, UnsafeLabColor, AnyColor, getColord, addColorWithRatio } from "./color";
 import { Matrix, matrix } from "mathjs";
 
 export type Debug = (currentImage: ColorMatrix) => void;
+export type OnFinalColor = (row: number, col: number, finalColor: AnyColor) => void;
 
 export function ditherWithErrorQuantization(
     sourceImage: ColorMatrix,
-    palette: Colord[],
+    palette: AnyColor[],
     ditherMatrix: Matrix,
     findClosestColor: FindClosesColor,
     getQuantizationError: GetQuantizationError,
+    onFinalColor?: OnFinalColor,
     debug?: Debug
 ): ColorMatrix {
     const { cols, rows } = sourceImage;
@@ -21,27 +21,18 @@ export function ditherWithErrorQuantization(
     for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
             const oldColor = dithered.get(row, col);
-            const newColor = findClosestColor(oldColor, palette);
+            const finalColor = findClosestColor(oldColor, palette);
 
-            dithered.set(row, col, newColor);
+            dithered.set(row, col, getColord(finalColor)); // TODO: here we know the final color: it will not change: so we can set it to the tile color
+            onFinalColor?.(row, col, finalColor);
 
-            const quantError : UnsafeLabColor = getQuantizationError(oldColor, newColor); // usually oldColor - newColor
+            const quantError : UnsafeLabColor = getQuantizationError(oldColor, finalColor); // usually oldColor - newColor
 
             // because the matrix starts from the middle of the first row
             const dColStart = Math.floor(dRows / 2);
             const dRowStart = 0;
 
-            function addColorWithRatio(color1: Colord, color2: UnsafeLabColor, ratio: number): Colord {
-                const lab1 = color1.toLab();
-                const lab2 = color2;
-
-                return colord({
-                    l: lab1.l + lab2.l * ratio,
-                    a: lab1.a + lab2.a * ratio,
-                    b: lab1.b + lab2.b * ratio,
-                });
             
-            }
 
             const noiseWidth = 1;
 
@@ -63,11 +54,6 @@ export function ditherWithErrorQuantization(
                     // Colord will clamp the values if they go outside of the allowed range
                     const updatedColor =  addColorWithRatio(currentColor, quantError, finalFactor); // add a certain amount of quantization error
 
-                    // console.log({ nx: updateCol, ny: updateRow, error: quantError, before: currentColor, after: updatedColor });
-
-                    const quantErrorString = `lab(${quantError.l}, ${quantError.a}, ${quantError.b})`;
-                    // console.log(`nx: ${updateCol}, ny: ${updateRow}, error: ${quantErrorString}, before: ${currentColor.toHex()}, after: ${updatedColor.toHex()}`);
-
                     dithered.set(updateRow, updateCol, updatedColor);
                 }
             }
@@ -79,13 +65,14 @@ export function ditherWithErrorQuantization(
     return dithered;
 }
 
+export const floydSteinbergDitherMatrix: Matrix = matrix([
+    [0, 0, 7],
+    [3, 5, 1],
+]).map((v: number) => v / 16.0);
+
 export const stuckiDitherMatrix: Matrix = matrix([
     [0, 0, 0, 8, 4],
     [2, 4, 8, 4, 2],
     [1, 2, 4, 2, 1],
 ]).map((v: number) => v / 42.0);
 
-export const floydSteinbergDitherMatrix: Matrix = matrix([
-    [0, 0, 7],
-    [3, 5, 1],
-]).map((v: number) => v / 16.0);

@@ -1,5 +1,6 @@
 import { shuffle } from "lodash";
-import { TilingOptions, TilingModel, Tile, TileType, GradientStop } from "./tiles";
+import { TilingOptions, TilingModel, Tile, TileType } from "./tiles";
+import { GradientStop } from "./gradient";
 
 
 

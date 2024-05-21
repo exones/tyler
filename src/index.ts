@@ -4,8 +4,8 @@ import { gradientTilingBuilder } from "./gradientTilingBuilder";
 import { draw as newCanvas } from './drawing';
 import { create2DHorizontalGradient } from './gradient';
 import { Colord, colord } from 'colord';
-import { ditherWithErrorQuantization, floydSteinbergDitherMatrix, stuckiDitherMatrix } from './errorQuantizationDithering';
-import { euclidianLabDistance, labQuantizationError as getLabQuantizationError, simpleFindClosestColor } from './color';
+import { ditherWithErrorQuantization, stuckiDitherMatrix } from './errorQuantizationDithering';
+import { AnyColor, euclidianLabDistance, labQuantizationError as getLabQuantizationError, simpleFindClosestColor } from './color';
 import { applyGaussianNoise } from './noiseDithering';
 import { quantizationDither } from "./quantizationDither";
 
@@ -13,7 +13,7 @@ let root: HTMLDivElement | undefined = undefined;
 
 const bigCrop = 80;
 const tileTypes : TileType[] =  [
-    {
+    new TileType({
         name: 'T',
 
         image:  new WebSampledImageTileImage({
@@ -26,8 +26,8 @@ const tileTypes : TileType[] =  [
                 bottom: bigCrop
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'M',
         image: new WebSampledImageTileImage({
             dir: 'marine-blue',
@@ -39,8 +39,8 @@ const tileTypes : TileType[] =  [
                 bottom: 110
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'B',
         image: new WebSampledImageTileImage({
             dir: 'light-blue',
@@ -52,8 +52,8 @@ const tileTypes : TileType[] =  [
                 bottom: bigCrop
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'G',
         image: new WebSampledImageTileImage({
             dir: 'light-green',
@@ -65,8 +65,8 @@ const tileTypes : TileType[] =  [
                 bottom: bigCrop
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'O',
         image: new WebSampledImageTileImage({
             dir: 'our-green',
@@ -78,8 +78,8 @@ const tileTypes : TileType[] =  [
                 bottom: bigCrop
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'D',
         image: new WebSampledImageTileImage({
             dir: 'deep-green',
@@ -91,8 +91,8 @@ const tileTypes : TileType[] =  [
                 bottom: 5
             }
         })
-    },
-    {
+    }),
+    new TileType({
         name: 'Y',
         image: new WebSampledImageTileImage({
             dir: 'yellow',
@@ -104,7 +104,7 @@ const tileTypes : TileType[] =  [
                 bottom: 2
             }
         })
-    }
+    })
 ];
 
 window.addEventListener('resize', () => {
@@ -189,21 +189,23 @@ window.onload = async function () {
     const turqBlue = colord("#3f6570");
     const marineBlue = colord("#4d5666");
 
-    const startColor = turqBlue;
-    const endColor = ourGreen;
+    const gradientStart = marineBlue;
+    const gradientEnd = ourGreen;
 
     const height = 8
     const width = 40;
 
-    const hGradient = create2DHorizontalGradient(startColor, endColor, height, width);
+    const hGradient = create2DHorizontalGradient(gradientStart, gradientEnd, height, width);
 
     const scale = 20;
     const scaleBorder: Colord | undefined = colord("#999999");
     // const palette = [  startColor, hGradient.getRow(0)[width /3], hGradient.getRow(0)[2*width /3], endColor ];
-    const palette = [
-        startColor,
-        marineBlue,
-        endColor
+    const palette : AnyColor[] = [
+        tileTypes[0],
+        tileTypes[1],
+        // startColor,
+        // marineBlue,
+        // endColor
     ];
 
     // gradient
@@ -237,6 +239,9 @@ window.onload = async function () {
             stuckiDitherMatrix,
             simpleFindClosestColor(euclidianLabDistance),
             getLabQuantizationError,
+            (row, col, finalColor) => {
+                const tileType = finalColor as TileType;
+            }
             // (current) => {
             //     current.scalePixelWithBorder(scale, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
             
@@ -295,6 +300,5 @@ window.onload = async function () {
         );
 
         dithered.scalePixelWithBorder(scale, scaleBorder).drawOn(ctx);
-
     });
 };
