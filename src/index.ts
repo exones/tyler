@@ -186,14 +186,14 @@ window.onload = async function () {
     })
 
     const ourGreen = colord("#485c44");
-    const turqBlue = colord("#4d5666");;
-    const marineBlue = colord("#3f6570");
+    const turqBlue = colord("#3f6570");
+    const marineBlue = colord("#4d5666");
 
-    const startColor = ourGreen;
-    const endColor = turqBlue;
+    const startColor = turqBlue;
+    const endColor = ourGreen;
 
     const height = 8
-    const width = 60;
+    const width = 40;
 
     const hGradient = create2DHorizontalGradient(startColor, endColor, height, width);
 
