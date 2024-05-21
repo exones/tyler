@@ -32,6 +32,14 @@ export class ColorMatrix {
 
     private readonly matrix: ColorVector[];
 
+    public getRow(row: number): Colord[] {
+        return this.matrix[row];
+    }
+
+    public getCol(col: number): Colord[] {
+        return this.matrix.map(row => row[col]);
+    }
+
     public clone() {
         const newMatrix = ColorMatrix.empty(this.rows, this.cols);
 
@@ -67,7 +75,20 @@ export class ColorMatrix {
         return newMatrix;
     }
 
-    public scalePixelWithBorder(scale: number, borderColor: Colord) {
+    public map(fn: (color: Colord, row: number, col: number) => Colord): ColorMatrix {
+        const newMatrix = ColorMatrix.empty(this.rows, this.cols);
+
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                const color = this.get(row, col);
+                newMatrix.set(row, col, fn(color, row, col));
+            }
+        }
+
+        return newMatrix;
+    }
+
+    public scalePixelWithBorder(scale: number, borderColor?: Colord) {
         if (scale === 1) {
             return this.clone();
         }
@@ -79,7 +100,7 @@ export class ColorMatrix {
                 const color = this.get(row, col);
                 for (let timesI = 0; timesI < scale; timesI++) {
                     for (let timesJ = 0; timesJ < scale; timesJ++) {
-                        if (timesI === 0 || timesI === scale || timesJ === 0 || timesJ === scale) {
+                        if ( borderColor && (timesI === 0 || timesI === scale || timesJ === 0 || timesJ === scale)) {
                             newMatrix.set(row * scale + timesI, col * scale + timesJ, borderColor);
                         } else {
                             newMatrix.set(row * scale + timesI, col * scale + timesJ, color);
@@ -303,4 +324,14 @@ export const euclidianLabDistance : ColorDistance = (color1, color2) => {
     const deltaB = lab1.b - lab2.b;
 
     return Math.sqrt(deltaL * deltaL + deltaA * deltaA + deltaB * deltaB);
+}
+
+export function scaleColor(color: Colord, scale: number): Colord {
+    const lab = color.toLab();
+
+    return colord({
+        l: lab.l * scale,
+        a: lab.a * scale,
+        b: lab.b * scale
+    });
 }

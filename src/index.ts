@@ -3,9 +3,11 @@ import { TilingOptions, drawTiling, modelToTilesMatrix as tilesModelToMatrix, lo
 import { gradientTilingBuilder } from "./gradientTilingBuilder";
 import { draw as newCanvas } from './drawing';
 import { create2DHorizontalGradient } from './gradient';
-import { colord } from 'colord';
-import { ditherWithErrorQuantization, floydSteinbergDitherMatrix, stuckiDitherMatrix } from './dithering';
+import { Colord, colord } from 'colord';
+import { ditherWithErrorQuantization, floydSteinbergDitherMatrix, stuckiDitherMatrix } from './errorQuantizationDithering';
 import { euclidianLabDistance, labQuantizationError as getLabQuantizationError, simpleFindClosestColor } from './color';
+import { applyGaussianNoise } from './noiseDithering';
+import { quantizationDither } from "./quantizationDither";
 
 let root: HTMLDivElement | undefined = undefined;
 
@@ -183,30 +185,32 @@ window.onload = async function () {
         });
     })
 
-    const startColor = colord({
-        r: 0,
-        g: 0,
-        b: 0
-    });
+    const ourGreen = colord("#485c44");
+    const turqBlue = colord("#4d5666");;
+    const marineBlue = colord("#3f6570");
 
-    const endColor = colord({
-        r: 255,
-        g: 255,
-        b: 255
-    });
+    const startColor = ourGreen;
+    const endColor = turqBlue;
 
-    const height = 200;
-    const width = 200;
+    const height = 8
+    const width = 60;
 
     const hGradient = create2DHorizontalGradient(startColor, endColor, height, width);
 
-    const scale = 1;
+    const scale = 20;
+    const scaleBorder: Colord | undefined = colord("#999999");
+    // const palette = [  startColor, hGradient.getRow(0)[width /3], hGradient.getRow(0)[2*width /3], endColor ];
+    const palette = [
+        startColor,
+        marineBlue,
+        endColor
+    ];
 
     // gradient
     await newCanvas({
         height: 200
     }, async (ctx, opts) => {
-        hGradient.scalePixelWithBorder(scale, colord("red")).drawOn(ctx);
+        hGradient.scalePixelWithBorder(scale, scaleBorder).drawOn(ctx);
     });
 
     // await newCanvas({}, async (ctx, opts) => {
@@ -222,15 +226,14 @@ window.onload = async function () {
     // });
 
     await newCanvas({
-        height: 10000
+        height: 300
     }, async (ctx, opts) => {
         
         let top = 0;
         
         const dithered = ditherWithErrorQuantization(
             hGradient,
-            // [ startColor, endColor ],
-            [ colord({r: 0, g: 0, b: 0}), colord({r: 255, g: 255, b: 255}) ],
+            palette,
             stuckiDitherMatrix,
             simpleFindClosestColor(euclidianLabDistance),
             getLabQuantizationError,
@@ -241,12 +244,57 @@ window.onload = async function () {
             // }
         );
 
-        dithered.scalePixelWithBorder(scale, colord({
-            r: 255,
-            g: 0,
-            b: 0
-        })) .drawOn(ctx);
+        dithered.scalePixelWithBorder(scale, scaleBorder) .drawOn(ctx);
 
+    });
+    
+    await newCanvas({
+        height: 300
+    }, async (ctx, opts) => {
+        
+        let top = 0;
+        
+        const dithered = quantizationDither(
+            applyGaussianNoise(hGradient, 0, 2),
+            palette,
+            simpleFindClosestColor(euclidianLabDistance),
+            // (current) => {
+            //     current.scalePixelWithBorder(scale, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
+            
+            //     top += height * scale + 10;
+            // }
+        );
+
+        dithered.scalePixelWithBorder(scale, scaleBorder) .drawOn(ctx);
+
+    });
+
+    const hGradientWithNoise = applyGaussianNoise(hGradient, 0, 1);
+
+    await newCanvas({}, async (ctx, opts) => {
+        hGradientWithNoise.scalePixelWithBorder(scale, scaleBorder).drawOn(ctx);
+    });
+
+    await newCanvas({
+        height: 300
+    }, async (ctx, opts) => {
+        
+        let top = 0;
+        
+        const dithered = ditherWithErrorQuantization(
+            hGradientWithNoise,
+            palette,
+            stuckiDitherMatrix,
+            simpleFindClosestColor(euclidianLabDistance),
+            getLabQuantizationError,
+            // (current) => {
+            //     current.scalePixelWithBorder(scale, colord({r: 255, g: 0, b: 0})).drawOn(ctx, 0, top)
+            
+            //     top += height * scale + 10;
+            // }
+        );
+
+        dithered.scalePixelWithBorder(scale, scaleBorder).drawOn(ctx);
 
     });
 };

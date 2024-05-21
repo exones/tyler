@@ -40,12 +40,19 @@ export function ditherWithErrorQuantization(
                     a: lab1.a + lab2.a * ratio,
                     b: lab1.b + lab2.b * ratio,
                 });
+            
             }
+
+            const noiseWidth = 1;
 
             // traversing dither matrix
             for (let dRow = 0; dRow < dRows; dRow++) {
                 for (let dCol = 0; dCol < dCols; dCol++) {
+                    // const noise = Math.random() * noiseWidth - noiseWidth / 2;
+                    const noise = 0;
                     const errorTransferStrength = ditherMatrix.get([dRow, dCol]) as number;
+
+                    const finalFactor = errorTransferStrength * (1+noise);
 
                     const updateRow = row + dRow - dRowStart;
                     const updateCol = col + dCol - dColStart;
@@ -54,7 +61,7 @@ export function ditherWithErrorQuantization(
                     const currentColor = dithered.get(updateRow, updateCol); // current color
 
                     // Colord will clamp the values if they go outside of the allowed range
-                    const updatedColor =  addColorWithRatio(currentColor, quantError, errorTransferStrength); // add a certain amount of quantization error
+                    const updatedColor =  addColorWithRatio(currentColor, quantError, finalFactor); // add a certain amount of quantization error
 
                     // console.log({ nx: updateCol, ny: updateRow, error: quantError, before: currentColor, after: updatedColor });
 
