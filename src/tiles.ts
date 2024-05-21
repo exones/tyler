@@ -1,4 +1,5 @@
 import { Colord } from "colord";
+import { isNil } from "lodash";
 import { ColorMatrix, IHaveColor } from "./color";
 import { GradientOptions } from "./gradient";
 
@@ -9,7 +10,7 @@ export type PictureCrop = {
     top: number;
     right: number;
     bottom: number;
-}
+};
 
 export type TilePictureRef = {
     dir: string;
@@ -17,37 +18,34 @@ export type TilePictureRef = {
     crop?: PictureCrop;
 };
 
-
 export type TileName = string;
 
 export type TileTypeConstructorOptions = {
     name: TileName;
     image: TileImage;
-}
+};
 
 export class TileType implements IHaveColor {
     public readonly name: TileName;
     public readonly image: TileImage;
-    public readonly color: Colord;
-
+    public get color(): Colord {
+        return this.image.effectiveColor;
+    }
 
     constructor(options: TileTypeConstructorOptions) {
         this.name = options.name;
         this.image = options.image;
-        this.color = this.image.effectiveColor;
     }
 
     public get effectiveColor(): Colord {
         return this.image.effectiveColor;
-    }    
-};
+    }
+}
 
 export type TileWithCoords = TileType & {
     x: number;
     y: number;
 };
-
-
 
 export type TilingOptions = {
     rows: number;
@@ -66,7 +64,7 @@ export class Rectangle {
     public readonly left: number;
     public readonly width: number;
     public readonly height: number;
-    
+
     constructor(top: number, left: number, width: number, height: number) {
         this.top = top;
         this.left = left;
@@ -78,18 +76,18 @@ export class Rectangle {
 export type TileCoords = {
     row: number;
     col: number;
-}
+};
 
 export type TileWithImage = {
     tile: Tile;
     image: TileImage;
-}
+};
 
 export type Tile = {
     name: TileName;
     // image: TileImage;
     coords: TileCoords;
-}
+};
 
 export abstract class TileImage {
     public draw(tile: Tile, ctx: CanvasRenderingContext2D, options: TilingDrawingOptions): void {
@@ -101,14 +99,18 @@ export abstract class TileImage {
         const left = spacing + col * (spacing + tileWidth);
         const top = spacing + row * (spacing + tileHeight);
 
-        const rect : Rectangle = new Rectangle(top, left, tileWidth, tileHeight);
-        
+        const rect: Rectangle = new Rectangle(top, left, tileWidth, tileHeight);
+
         this.drawCore(tile, ctx, rect, options);
     }
 
-    public abstract drawCore(tile: Tile, ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void;
+    protected abstract drawCore(tile: Tile, ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void;
 
     public abstract get effectiveColor(): Colord;
+
+    public prepare(): Promise<void> {
+        return Promise.resolve();
+    }
 }
 
 export class SolidColorTileImage extends TileImage {
@@ -122,7 +124,7 @@ export class SolidColorTileImage extends TileImage {
         this.color = color;
     }
 
-    public override drawCore(_tile: Tile,  ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void {
+    public override drawCore(_tile: Tile, ctx: CanvasRenderingContext2D, rect: Rectangle, options: TilingDrawingOptions): void {
         const { color } = this;
 
         ctx.fillStyle = color.toHex();
@@ -131,26 +133,80 @@ export class SolidColorTileImage extends TileImage {
     }
 }
 
-
 type WebImageTileImageOptions = {
     crop?: PictureCrop;
     dir: string;
     samples: string[];
-}
+    darken?: number;
+};
 
 export class WebImageTileImage extends TileImage {
     public get effectiveColor(): Colord {
-        const imageColorMatrix = ColorMatrix.empty(1, 1);
+        if (isNil(this.color)) {
+            throw new Error("Color is not defined");
+        }
 
-        // TODO: remove X% of the brightest and darkest pixels to avoid outliers (e.g. white or black pixels)
-        const averageColor = imageColorMatrix.getAverageColor();
-
-        return averageColor;
+        return this.color;
     }
     private readonly crop?: PictureCrop;
     private readonly dir: string;
     private readonly samples: string[];
-    
+    private readonly darken?: number;
+
+    private colorMatrix: ColorMatrix | undefined;
+    public color: Colord | undefined;
+
+    private getImageData(url: string): Promise<ImageData> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = url;
+
+            const canvas = document.createElement("canvas");
+
+            try {
+                const ctx = canvas.getContext("2d");
+
+                if (ctx === null) {
+                    throw new Error("Canvas context is null");
+                }
+
+                img.onload = function () {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    console.log(`Image loaded: ${img.width}x${img.height}`);
+                    ctx.drawImage(img, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+
+                    resolve(imageData);
+                };
+
+                img.onerror = function () {
+                    reject(new Error("Image loading failed"));
+                };
+            } finally {
+                canvas.remove();
+            }
+        });
+    }
+
+    public override async prepare(): Promise<void> {
+        // get image with fetch and form ColorMatrix from ImageData
+        const dir = this.dir;
+        const randomSampleIndex = Math.floor(Math.random() * this.samples.length);
+        const randomSample = this.samples[randomSampleIndex];
+
+        const imgUrl = `/img/${dir}/${randomSample}`;
+        const imageData = await this.getImageData(imgUrl);
+
+        this.colorMatrix = ColorMatrix.fromImageData(imageData);
+        this.color = this.colorMatrix.getAverageColor();
+
+        if (this.darken) {
+            this.color = this.color.darken(this.darken);
+        }
+    }
 
     constructor(options: WebImageTileImageOptions) {
         super();
@@ -166,22 +222,29 @@ export class WebImageTileImage extends TileImage {
             left: this.crop?.left ?? 0,
             top: this.crop?.top ?? 0,
             right: this.crop?.right ?? 0,
-            bottom: this.crop?.bottom ?? 0
+            bottom: this.crop?.bottom ?? 0,
         };
-        
+
+        // const zeroCrop = {
+        //     left: 0,
+        //     top: 0,
+        //     right: 0,
+        //     bottom: 0,
+        // };
+
+        // const effectiveCrop = zeroCrop;
+
         // apply crop if defined
         const { left: cropLeft, top: cropTop, right: cropRight, bottom: cropBottom } = effectiveCrop;
         const { tileWidth, tileHeight } = options;
-        const { col, row }  = tile.coords;
-            
-        img.onload = function() {
+        const { col, row } = tile.coords;
+
+        const [x, y] = [col * (tileWidth + options.spacing), row * (tileHeight + options.spacing)];
+
+        img.onload = function () {
             // draw with crop
-            ctx.drawImage(
-                img, 
-                cropLeft, cropTop, img.width - cropLeft - cropRight, img.height - cropTop - cropBottom,
-                col, row, tileWidth, tileHeight);
-        }
-        
+            ctx.drawImage(img, cropLeft, cropTop, img.width - cropLeft - cropRight, img.height - cropTop - cropBottom, x, y, tileWidth, tileHeight);
+        };
 
         const dir = this.dir;
         const randomSampleIndex = Math.floor(Math.random() * this.samples.length);
@@ -207,7 +270,7 @@ export type TilingDrawingOptions = {
 
     tileWidth: number;
     tileHeight: number;
-}
+};
 
 /**
  * Tiles matrix type.
@@ -261,9 +324,8 @@ export function tilesMatrixToModel(matrix: TilesMatrix, options: TilingOptions):
                     name: tileName,
                     coords: {
                         row,
-                        col
-                    }
-                
+                        col,
+                    },
                 });
             }
         }
@@ -271,12 +333,12 @@ export function tilesMatrixToModel(matrix: TilesMatrix, options: TilingOptions):
 
     return {
         options,
-        tiles
+        tiles,
     };
 }
 
 /**
- * Draw a tiling on a canvas using a tiling model and drawing options. 
+ * Draw a tiling on a canvas using a tiling model and drawing options.
  */
 export function drawTiling(ctx: CanvasRenderingContext2D, model: TilingModel, drawingOptions: TilingDrawingOptions): void {
     const { options } = model;
@@ -294,8 +356,7 @@ export function drawTiling(ctx: CanvasRenderingContext2D, model: TilingModel, dr
     ctx.fillStyle = spacingColor;
     ctx.fillRect(0, 0, cols * (tileWidth + spacing) + spacing, rows * (tileHeight + spacing) + spacing);
 
-
-    model.tiles.forEach(tile => {
+    model.tiles.forEach((tile) => {
         const tileType = tilesTypesByName[tile.name];
 
         if (tileType === undefined) {
@@ -307,18 +368,39 @@ export function drawTiling(ctx: CanvasRenderingContext2D, model: TilingModel, dr
 }
 
 export function logTilesMatrix(matrix: TilesMatrix): void {
-    let rows = []
-    for (let row = 0; row < matrix.length; row++) {        
-        let cols = []
+    let rows = [];
+    for (let row = 0; row < matrix.length; row++) {
+        let cols = [];
         for (let col = 0; col < matrix[row].length; col++) {
             cols.push(matrix[row][col]);
         }
 
-        rows.push(cols.join(''));
+        rows.push(cols.join(""));
     }
 
-    const matrixStr = rows.join('\n');
+    const matrixStr = rows.join("\n");
 
     console.log(matrixStr);
 }
 
+export function printTilingStats(tilingModel: TilingModel) {
+    // tiles count by type
+
+    const tilesByType = tilingModel.tiles.reduce((acc, tile) => {
+        if (acc[tile.name] === undefined) {
+            acc[tile.name] = 0;
+        }
+
+        acc[tile.name]++;
+
+        return acc;
+    }, {} as Record<string, number>);
+
+    console.log("Tiles count by type:");
+
+    for (const tileName in tilesByType) {
+        const tilesCount = tilesByType[tileName];
+        const boxesCount = Math.ceil(tilesCount / 54);
+        console.log(`${tileName}: ${tilesCount} ( ${boxesCount} boxes)`);
+    }
+}

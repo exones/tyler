@@ -1,10 +1,9 @@
-
 // Calculate avarage color of an image using sharp and color libraries.
-import { isNil } from "lodash";
 import { Colord, colord, extend } from "colord";
-import sharp from "sharp";
-import mixPlugin from "colord/plugins/mix";
 import labPlugin from "colord/plugins/lab";
+import mixPlugin from "colord/plugins/mix";
+import { isNil } from "lodash";
+import sharp from "sharp";
 
 extend([mixPlugin]);
 extend([labPlugin]);
@@ -14,7 +13,7 @@ export type Crop = {
     top?: number;
     right?: number;
     bottom?: number;
-}
+};
 
 export type ColorVector = Colord[];
 
@@ -23,7 +22,7 @@ export type ToImageDataOptions = {
      * To draw exagerrated big pixels.
      */
     pixelSize?: number;
-}
+};
 
 export function addColorWithRatio(color1: Colord, color2: UnsafeLabColor, ratio: number): Colord {
     const lab1 = color1.toLab();
@@ -34,7 +33,6 @@ export function addColorWithRatio(color1: Colord, color2: UnsafeLabColor, ratio:
         a: lab1.a + lab2.a * ratio,
         b: lab1.b + lab2.b * ratio,
     });
-
 }
 
 export class ColorMatrix {
@@ -48,7 +46,7 @@ export class ColorMatrix {
     }
 
     public getCol(col: number): Colord[] {
-        return this.matrix.map(row => row[col]);
+        return this.matrix.map((row) => row[col]);
     }
 
     public clone() {
@@ -111,7 +109,7 @@ export class ColorMatrix {
                 const color = this.get(row, col);
                 for (let timesI = 0; timesI < scale; timesI++) {
                     for (let timesJ = 0; timesJ < scale; timesJ++) {
-                        if ( borderColor && (timesI === 0 || timesI === scale || timesJ === 0 || timesJ === scale)) {
+                        if (borderColor && (timesI === 0 || timesI === scale || timesJ === 0 || timesJ === scale)) {
                             newMatrix.set(row * scale + timesI, col * scale + timesJ, borderColor);
                         } else {
                             newMatrix.set(row * scale + timesI, col * scale + timesJ, color);
@@ -124,39 +122,63 @@ export class ColorMatrix {
         return newMatrix;
     }
 
-    public static async fromSharpImage(image: sharp.Sharp, options?: {crop?: Crop}): Promise<ColorMatrix> {
-        const { width, height } = await image.metadata();
-    
-        if (width === undefined || height === undefined) {
-            throw new Error('Image width or height is undefined');
-        }    
-    
-        const data = await image.raw().toBuffer();
-    
+    public static fromImageData(imageData: ImageData): ColorMatrix {
+        const { width, height, data } = imageData;
+
         const colorMatrix: Colord[][] = [];
-    
-        const crop : Required<Crop> = {
+
+        for (let y = 0; y < height; y++) {
+            const row: Colord[] = [];
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                const a = data[idx + 3];
+
+                const color: Colord = colord({ r, g, b, a });
+
+                row.push(color);
+            }
+            colorMatrix.push(row);
+        }
+
+        return ColorMatrix.fromValues(height, width, colorMatrix);
+    }
+
+    public static async fromSharpImage(image: sharp.Sharp, options?: { crop?: Crop }): Promise<ColorMatrix> {
+        const { width, height } = await image.metadata();
+
+        if (width === undefined || height === undefined) {
+            throw new Error("Image width or height is undefined");
+        }
+
+        const data = await image.raw().toBuffer();
+
+        const colorMatrix: Colord[][] = [];
+
+        const crop: Required<Crop> = {
             left: options?.crop?.left ?? 0,
             top: options?.crop?.top ?? 0,
             right: options?.crop?.right ?? 0,
-            bottom: options?.crop?.bottom ?? 0 
+            bottom: options?.crop?.bottom ?? 0,
         };
-    
-        for (let y = crop.top  ; y < height - crop.bottom; y++) {
+
+        for (let y = crop.top; y < height - crop.bottom; y++) {
             const row: Colord[] = [];
             for (let x = crop.left; x < width - crop.right; x++) {
                 const idx = (y * width + x) * 3;
                 const r = data[idx];
                 const g = data[idx + 1];
                 const b = data[idx + 2];
-    
-                const color: Colord = colord({ r, g, b,  });
-    
+
+                const color: Colord = colord({ r, g, b });
+
                 row.push(color);
             }
             colorMatrix.push(row);
         }
-    
+
         return ColorMatrix.fromValues(height, width, colorMatrix);
     }
 
@@ -167,7 +189,6 @@ export class ColorMatrix {
     public static empty(rows: number, cols: number): ColorMatrix {
         return new ColorMatrix(rows, cols);
     }
-
 
     public toRGBUint8ClampedArray(): Uint8ClampedArray {
         const data = new Uint8ClampedArray(this.rows * this.cols * 4);
@@ -191,10 +212,9 @@ export class ColorMatrix {
         const colorsArray = this.toRGBUint8ClampedArray();
 
         const actualPixelSize = options?.pixelSize ?? 1;
-        
 
         return new ImageData(colorsArray, this.cols, this.rows, {
-            colorSpace: 'srgb'
+            colorSpace: "srgb",
         });
     }
 
@@ -205,7 +225,6 @@ export class ColorMatrix {
     }
 
     public get(row: number, col: number): Colord {
-
         // check boundaries
         this.checkBoundaries(row, col);
 
@@ -242,7 +261,7 @@ export class ColorMatrix {
         let sumA = 0;
         let sumB = 0;
 
-        const colors = this.matrix.flat();
+        let colors = this.matrix.flat();
 
         if (brightestAndDarkestOutliers) {
             const sortedColors = colors.sort((a, b) => a.toLab().l - b.toLab().l);
@@ -250,7 +269,14 @@ export class ColorMatrix {
             const darkest = sortedColors.slice(0, brightestAndDarkestOutliers);
             const brightest = sortedColors.slice(sortedColors.length - brightestAndDarkestOutliers);
 
-            colors.filter(color => !darkest.includes(color) && !brightest.includes(color));
+            colors = colors.filter((color) => !darkest.includes(color) && !brightest.includes(color));
+        }
+
+        for (const color of colors) {
+            const lab = color.toLab();
+            sumL += lab.l;
+            sumA += lab.a;
+            sumB += lab.b;
         }
 
         const averageL = sumL / (this.rows * this.cols);
@@ -260,10 +286,10 @@ export class ColorMatrix {
         return colord({
             l: averageL,
             a: averageA,
-            b: averageB
+            b: averageB,
         });
     }
-};
+}
 
 export function colorMatrixToImageData(colorMatrix: ColorMatrix): ImageData {
     const { rows, cols } = colorMatrix;
@@ -283,11 +309,9 @@ export function colorMatrixToImageData(colorMatrix: ColorMatrix): ImageData {
     }
 
     return new ImageData(data, cols, rows, {
-        colorSpace: 'srgb',
+        colorSpace: "srgb",
     });
 }
-
-
 
 export interface IHaveColor {
     readonly color: Colord;
@@ -295,15 +319,13 @@ export interface IHaveColor {
 
 export type AnyColor = Colord | IHaveColor;
 
-
-export type UnsafeLabColor = { l: number, a: number, b: number };
-
+export type UnsafeLabColor = { l: number; a: number; b: number };
 
 export type ColorDistance = (color1: AnyColor, color2: AnyColor) => number;
 export type GetQuantizationError = (sourceColor: AnyColor, availableColor: AnyColor) => UnsafeLabColor;
 export type FindClosesColor = (sourceColor: AnyColor, palette: AnyColor[]) => AnyColor;
 
-export function simpleFindClosestColor(distanceFunc: ColorDistance) : FindClosesColor {
+export function simpleFindClosestColor(distanceFunc: ColorDistance): FindClosesColor {
     return (sourceColor, palette) => {
         let minDistance = Number.MAX_VALUE;
         let closestColor = palette[0];
@@ -318,10 +340,10 @@ export function simpleFindClosestColor(distanceFunc: ColorDistance) : FindCloses
         }
 
         return closestColor;
-    }
+    };
 }
 
-export const labQuantizationError : GetQuantizationError = (sourceColor, availableColor) => {
+export const labQuantizationError: GetQuantizationError = (sourceColor, availableColor) => {
     const sourceLab = getColord(sourceColor).toLab();
     const availableLab = getColord(availableColor).toLab();
 
@@ -330,7 +352,7 @@ export const labQuantizationError : GetQuantizationError = (sourceColor, availab
     const deltaB = sourceLab.b - availableLab.b;
 
     return { l: deltaL, a: deltaA, b: deltaB };
-}
+};
 
 export function getColord(color: AnyColor): Colord {
     if (color instanceof Colord) {
@@ -340,16 +362,16 @@ export function getColord(color: AnyColor): Colord {
     }
 }
 
-export const euclidianLabDistance : ColorDistance = (color1, color2) => {
+export const euclidianLabDistance: ColorDistance = (color1, color2) => {
     const lab1 = getColord(color1).toLab();
     const lab2 = getColord(color2).toLab();
-    
+
     const deltaL = lab1.l - lab2.l;
     const deltaA = lab1.a - lab2.a;
     const deltaB = lab1.b - lab2.b;
 
     return Math.sqrt(deltaL * deltaL + deltaA * deltaA + deltaB * deltaB);
-}
+};
 
 export function scaleColor(color: Colord, scale: number): Colord {
     const lab = color.toLab();
@@ -357,6 +379,6 @@ export function scaleColor(color: Colord, scale: number): Colord {
     return colord({
         l: lab.l * scale,
         a: lab.a * scale,
-        b: lab.b * scale
+        b: lab.b * scale,
     });
 }

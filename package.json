@@ -1,37 +1,49 @@
 {
-  "name": "tyler",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' server.ts",
-    "dev": "parcel src/index.html"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "color": "^4.2.3",
-    "colord": "^2.9.3",
-    "culori": "^4.0.1",
-    "express": "^4.19.2",
-    "jquery": "^3.7.1",
-    "lodash": "^4.17.21",
-    "mathjs": "^12.4.2",
-    "sharp": "^0.33.4"
-  },
-  "devDependencies": {
-    "@types/color": "^3.0.6",
-    "@types/culori": "^2.1.0",
-    "@types/express": "^4.17.21",
-    "@types/jquery": "^3.5.30",
-    "@types/lodash": "^4.17.4",
-    "@types/node": "^20.12.12",
-    "@types/sharp": "^0.32.0",
-    "nodemon": "^3.1.0",
-    "parcel-bundler": "^1.12.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
-  }
+    "name": "tyler",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' server.ts",
+        "dev": "parcel src/index.html"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "color": "^4.2.3",
+        "colord": "^2.9.3",
+        "culori": "^4.0.1",
+        "express": "^4.19.2",
+        "jquery": "^3.7.1",
+        "lodash": "^4.17.21",
+        "mathjs": "^12.4.2",
+        "sharp": "^0.33.4"
+    },
+    "devDependencies": {
+        "@types/color": "^3.0.6",
+        "@types/culori": "^2.1.0",
+        "@types/express": "^4.17.21",
+        "@types/jquery": "^3.5.30",
+        "@types/lodash": "^4.17.4",
+        "@types/node": "^20.12.12",
+        "@types/sharp": "^0.32.0",
+        "nodemon": "^3.1.0",
+        "parcel-bundler": "^1.12.5",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.4.5"
+    },
+    "prettier": {
+        "trailingComma": "all",
+        "tabWidth": 4,
+        "sortingMethod": "alphabetical",
+        "stripNewlines": true,
+        "printWidth": 200,
+        "importTypeOrder": [
+            "NPMPackages",
+            "localImportsType",
+            "localImportsValue"
+        ]
+    }
 }
